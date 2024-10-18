@@ -9,4 +9,15 @@ export default defineConfig({
     }),
     tsconfigPaths(),
   ],
+  server: {
+    proxy: {
+      // ...
+    },
+    https: {
+      key: "./key.pem",
+      cert: "./cert.pem",
+    },
+    host: "local.jogg.co",
+    port: 443, // Optional: Use port 443 to simulate HTTPS
+  },
 });
