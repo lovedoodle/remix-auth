@@ -1,74 +1,55 @@
-import User from "../../component/User";
+// import User from "../../component/User";
 import type { ActionFunctionArgs } from "@remix-run/node";
 import { useLoaderData } from "@remix-run/react";
+import { LogoutButton } from "../../component/Logout";
+import { getSession } from "../../sessions";
+function getCookieValue(cookies, name) {
+  const cookie = cookies
+    .split(";")
+    .find((c) => c.trim().startsWith(name + "="));
+  if (cookie) {
+    return cookie.split("=")[1];
+  }
+  return null;
+}
 
 export const loader = async ({ request }: ActionFunctionArgs) => {
-  //   const formData = await request.formData();
-  // const credentials = Object.fromEntries(formData);
-  const cookieHeader = request.headers.get("Cookie");
-  const host = request.headers.get("Host");
-  const requestHeaders = request.headers;
-  const xsrfToken = cookieHeader
-    ?.split(";")
-    .find((cookie) => cookie.trim().startsWith("XSRF-TOKEN="))
-    ?.split("=")[1];
-  requestHeaders.set("X-XSRF-TOKEN", xsrfToken);
-  console.log(requestHeaders, "requestHeaders 000000009999998888");
-
-  console.log(request.headers, "&&&&&&&&&^^^^^^^^%%%%%%%");
-  console.log(cookieHeader, "hosttttttt");
-
-  //   console.log(xsrfToken, "xsrfToken99999999");
-
-  //   cookieHeader["X-XSRF-TOKEN"] = xsrfToken;
-  //   console.log(xsrfToken, "xsrfToken 88888888888888888888");
-
-  //   console.log(request, "&&&&&^^^^^%%%$$$$$$####@@@");
+  let session = await getSession(request.headers.get("cookie"));
+  let token = session.get("token");
+  console.log(request.headers, "request headers");
+  const myHeaders = new Headers();
+  myHeaders.append("Cookie", session.get("csrf"));
+  const result = await getCookieValue(session.get("csrf"), "XSRF-TOKEN");
+  console.log(result, "result");
+  myHeaders.append("X-XSRF-TOKEN", result);
+  console.log(token, "me token");
+  console.log(session.get("csrf"), "csfr token");
 
   try {
     const user = await fetch("https://staging-studio-api.jogg.co/me", {
       method: "GET",
-      headers: request.headers,
-      //   headers: {
-      //     "Content-Type": "application/json",
-      //     // Include the original cookies from the incoming request
-      //     Cookie: cookieHeader,
-      //   },
+      headers: myHeaders,
+      credentials: "include",
     });
-    // console.log("API response headers:", Array.from(user.headers));
-    // console.log(user.headers, "user oberject #######@@@@@@@@@@@@");
     return { user: await user.json() };
-
-    // console.log(csrf, 9999974574747474747474747474);
-    // const res = await axios.post("login", Object.fromEntries(formData));
   } catch (err) {
     return null;
-    console.log(err, "error}");
   }
 };
 
-export const action = async ({ request }: ActionFunctionArgs) => {
-  console.log("log out");
-  await fetch("https://staging-studio-api.jogg.co/logout", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    credentials: "include",
-  });
-};
-
 export default function dashboard() {
-  //   const { user } = useLoaderData<typeof loader>();
-  //   console.log(user, "user object");
-  //   if (!user) {
-  //     return null;
-  //   }
+  const { user } = useLoaderData<typeof loader>();
+  console.log(user, "user object 1");
+
+  if (!user) {
+    return null;
+  }
   return (
     <div>
-      <button type="submit">log out</button>
+      <LogoutButton />
+
       <h1>Dashboarding12</h1>
-      <User />
+      {/* <User /> */}
     </div>
   );
 }

@@ -1,17 +1,21 @@
 import type { ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
+import { getSession, commitSession } from "../sessions";
 
-import { useState } from "react";
-import Axios from "axios";
-
-export const axios = Axios.create({
-  baseURL: "https://staging-studio-api.jogg.co",
-  withCredentials: true,
-  withXSRFToken: true,
-});
+function getCookieValue(cookies, name) {
+  const cookie = cookies
+    .split(";")
+    .find((c) => c.trim().startsWith(name + "="));
+  if (cookie) {
+    return cookie.split("=")[1];
+  }
+  return null;
+}
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const formData = await request.formData();
+  console.log(Object.fromEntries(formData));
+  let session = await getSession(request.headers.get("cookie"));
 
   try {
     const csrf = await fetch("https://staging-studio-api.jogg.co/csrf-cookie", {
@@ -21,21 +25,22 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       },
     });
 
-    const csrfToken = csrf.headers.get("Set-Cookie");
+    console.log(csrf, "csrf object 000000000000000000000000000");
+    session.set("csrf", csrf.headers.get("Set-Cookie"));
 
-    console.log(csrfToken, 9999974574747474747474747474);
-    // console.log(
-    //   csrfToken
-    //     .split("; ") // Split the cookies into an array
-    //     .find((row) => row.startsWith("XSRF-TOKEN=")) // Find the cookie with the name 'XSRF-TOKEN'
-    //     ?.split("=")[1]
-    // );
+    const csrfToken = await getCookieValue(
+      csrf.headers.get("Set-Cookie"),
+      "XSRF-TOKEN"
+    );
+    console.log(csrfToken, "csr token9999974574747474747474747474");
+
+    const myHeaders = new Headers();
+    myHeaders.append("X-XSRF-TOKEN", csrfToken || "");
+    // myHeaders.append("Cookie", csrf.headers.get("Set-Cookie") || "");
 
     const response = await fetch("https://staging-studio-api.jogg.co/login", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: myHeaders,
       body: JSON.stringify(Object.fromEntries(formData)),
       credentials: "include",
     });
@@ -46,31 +51,24 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     //   throw new Error(`Login failed: ${response.statusText}`);
     // }
 
-    // Forward the Set-Cookie header from the backend API to the browser
-    const setCookieHeader = response.headers.get("Set-Cookie");
+    // const headers = new Headers();
+    // headers.append("Set-Cookie", `${setCookieHeader},${csrfToken}`);
+    // if (csrfToken) {
+    //   headers.append("X-XSRF-TOKEN", csrfToken);
+    // }
+    const token = response.headers.get("Set-Cookie");
+    console.log(token, "token object 000000000000000000000000000");
 
-    // console.log(
-    //   response.headers.get("Set-Cookie"),
-    //   "coookie header &&&&&&&&&&&&"
-    // );
-    if (!setCookieHeader) {
-      throw new Error("No Set-Cookie header received from the backend.");
-    }
-    const headers = new Headers();
-    headers.append("Set-Cookie", `${setCookieHeader},${csrfToken}`);
-    if (csrfToken) {
-      headers.append("X-XSRF-TOKEN", csrfToken);
-    }
+    session.set("token", `${token}`);
 
-    console.log(response, "response object 000000000000000000000000000");
+    console.log(response, "log in response object 000000000000000000000000000");
 
-    console.log(headers, "headers object 000000000000000000000000000");
+    // console.log(headers, "headers object 000000000000000000000000000");
     return redirect("/dashboard", {
-      headers,
+      headers: {
+        "Set-Cookie": await commitSession(session),
+      },
     });
-
-    // console.log(csrf, 9999974574747474747474747474);
-    // const res = await axios.post("login", Object.fromEntries(formData));
   } catch (err) {
     console.error("Error during login:", err);
     return json({ error: "Login failed" }, { status: 500 });
