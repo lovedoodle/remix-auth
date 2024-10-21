@@ -16,7 +16,7 @@ function getCookieValue(cookies, name) {
 export const loader = async ({ request }: ActionFunctionArgs) => {
   let session = await getSession(request.headers.get("cookie"));
   let token = session.get("token");
-  console.log(request.headers, "request headers");
+  console.log(request.headers, "request headers $$$4");
   const myHeaders = new Headers();
   myHeaders.append("Cookie", session.get("csrf"));
   const result = await getCookieValue(session.get("csrf"), "XSRF-TOKEN");
@@ -46,7 +46,7 @@ export default function dashboard() {
   }
   return (
     <div>
-      <LogoutButton />
+      {/* <LogoutButton /> */}
 
       <h1>Dashboarding12</h1>
       {/* <User /> */}

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import Axios from "axios";
+import SignOut from "./SignOut";
 export const axios = Axios.create({
   baseURL: "https://staging-studio-api.jogg.co",
   withCredentials: true,
@@ -19,9 +20,9 @@ export default function User() {
 
   return (
     <div>
+      <SignOut />
       <h1>Dashboarding</h1>
       <h2>Welcome</h2>
-      <button></button>
     </div>
   );
 }

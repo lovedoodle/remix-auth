@@ -36,7 +36,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     const myHeaders = new Headers();
     myHeaders.append("X-XSRF-TOKEN", csrfToken || "");
-    // myHeaders.append("Cookie", csrf.headers.get("Set-Cookie") || "");
+    myHeaders.append("Cookie", csrf.headers.get("Set-Cookie") || "");
 
     const response = await fetch("https://staging-studio-api.jogg.co/login", {
       method: "POST",
