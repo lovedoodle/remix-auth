@@ -1,42 +1,58 @@
 import type { ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
 import { getSession, commitSession } from "../sessions";
+import { s } from "node_modules/vite/dist/node/types.d-aGj9QkWt";
 
-function getCookieValue(cookies, name) {
-  const cookie = cookies
-    .split(";")
-    .find((c) => c.trim().startsWith(name + "="));
+function getCookieValue(cookieHeader, cookieName) {
+  const cookies = cookieHeader.split(";");
+  const cookie = cookies.find((cookie) =>
+    cookie.trim().startsWith(`${cookieName}=`)
+  );
+  console.log(cookie, "cookie");
   if (cookie) {
     return cookie.split("=")[1];
   }
   return null;
 }
 
-export const action = async ({ request }: ActionFunctionArgs) => {
+export const action: ActionFunction = async ({ request }) => {
   const formData = await request.formData();
   console.log(Object.fromEntries(formData));
+
   let session = await getSession(request.headers.get("cookie"));
 
   try {
     const csrf = await fetch("https://staging-studio-api.jogg.co/csrf-cookie", {
       method: "GET",
       headers: {
-        "Content-Type": "application",
+        "Content-Type": "application/json", // Correct Content-Type header
       },
     });
 
-    console.log(csrf, "csrf object 000000000000000000000000000");
-    session.set("csrf", csrf.headers.get("Set-Cookie"));
+    console.log(csrf, "csrf object");
 
-    const csrfToken = await getCookieValue(
-      csrf.headers.get("Set-Cookie"),
-      "XSRF-TOKEN"
-    );
-    console.log(csrfToken, "csr token9999974574747474747474747474");
+    const setCookieHeader = csrf.headers.get("Set-Cookie");
 
+    if (!setCookieHeader) {
+      throw new Error("Set-Cookie header not found in CSRF response");
+    }
+
+    const csrfToken = getCookieValue(setCookieHeader, "XSRF-TOKEN");
+    // const sessionToken = getCookieValue(setCookieHeader, "studio_session");
+    // console.log(sessionToken, "sessionToken ((((99999");
+    // const result = `XSRF-TOKEN=${csrfToken}, studio_session=${csrfToken}`;
+
+    if (!csrfToken) {
+      throw new Error("CSRF token not found");
+    }
+
+    // Prepare headers for login request
     const myHeaders = new Headers();
-    myHeaders.append("X-XSRF-TOKEN", csrfToken || "");
-    myHeaders.append("Cookie", csrf.headers.get("Set-Cookie") || "");
+    myHeaders.append("X-XSRF-TOKEN", csrfToken);
+    // myHeaders.append("Cookie", setCookieHeader);
+    myHeaders.append("Content-Type", "application/json");
+
+    console.log(myHeaders, "myHeaders");
 
     const response = await fetch("https://staging-studio-api.jogg.co/login", {
       method: "POST",
@@ -45,25 +61,21 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       credentials: "include",
     });
 
-    // console.log(response, "response object 000000000000000000000000000");
+    console.log(response, "log in response");
 
     // if (!response.ok) {
     //   throw new Error(`Login failed: ${response.statusText}`);
     // }
 
-    // const headers = new Headers();
-    // headers.append("Set-Cookie", `${setCookieHeader},${csrfToken}`);
-    // if (csrfToken) {
-    //   headers.append("X-XSRF-TOKEN", csrfToken);
-    // }
-    const token = response.headers.get("Set-Cookie");
-    console.log(token, "token object 000000000000000000000000000");
+    const token = getCookieValue(
+      response.headers.get("Set-Cookie"),
+      "XSRF-TOKEN"
+    );
+    console.log(token, "token");
 
-    session.set("token", `${token}`);
+    session.set("token", token);
+    session.set("csrf", csrfToken);
 
-    console.log(response, "log in response object 000000000000000000000000000");
-
-    // console.log(headers, "headers object 000000000000000000000000000");
     return redirect("/dashboard", {
       headers: {
         "Set-Cookie": await commitSession(session),
@@ -74,7 +86,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return json({ error: "Login failed" }, { status: 500 });
   }
 };
-
 export default function LoginForm() {
   return (
     <div>
