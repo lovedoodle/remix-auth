@@ -15,7 +15,7 @@ function getCookieValue(cookieHeader, cookieName) {
   return null;
 }
 
-export const action: ActionFunction = async ({ request }) => {
+export const action = async ({ request }: ActionFunctionArgs) => {
   const formData = await request.formData();
   console.log(Object.fromEntries(formData));
 
@@ -37,7 +37,8 @@ export const action: ActionFunction = async ({ request }) => {
       throw new Error("Set-Cookie header not found in CSRF response");
     }
 
-    const csrfToken = getCookieValue(setCookieHeader, "XSRF-TOKEN");
+    const csrfToken = await getCookieValue(setCookieHeader, "XSRF-TOKEN");
+    console.log(csrfToken, "csrfToken@@@@@@@@@@@@");
     // const sessionToken = getCookieValue(setCookieHeader, "studio_session");
     // console.log(sessionToken, "sessionToken ((((99999");
     // const result = `XSRF-TOKEN=${csrfToken}, studio_session=${csrfToken}`;
@@ -47,10 +48,11 @@ export const action: ActionFunction = async ({ request }) => {
     }
 
     // Prepare headers for login request
-    const myHeaders = new Headers();
-    myHeaders.append("X-XSRF-TOKEN", csrfToken);
+    const myHeaders = await new Headers();
+    await myHeaders.append("X-XSRF-TOKEN", csrfToken);
     // myHeaders.append("Cookie", setCookieHeader);
-    myHeaders.append("Content-Type", "application/json");
+    await myHeaders.append("Content-Type", "application/json");
+    await myHeaders.append("Origin", "https://local.jogg.co");
 
     console.log(myHeaders, "myHeaders");
 
@@ -69,7 +71,7 @@ export const action: ActionFunction = async ({ request }) => {
 
     const token = getCookieValue(
       response.headers.get("Set-Cookie"),
-      "XSRF-TOKEN"
+      "studio_session"
     );
     console.log(token, "token");
 
