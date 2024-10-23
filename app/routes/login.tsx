@@ -1,80 +1,95 @@
 import type { ActionFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
 import { getSession, commitSession } from "../sessions";
-import { s } from "node_modules/vite/dist/node/types.d-aGj9QkWt";
+import { parse } from "cookie";
 
-function getCookieValue(cookieHeader, cookieName) {
-  const cookies = cookieHeader.split(";");
-  const cookie = cookies.find((cookie) =>
-    cookie.trim().startsWith(`${cookieName}=`)
-  );
-  console.log(cookie, "cookie");
-  if (cookie) {
-    return cookie.split("=")[1];
+function getCookieValue(cookiesArray, cookieName) {
+  for (const cookieString of cookiesArray) {
+    const cookie = parse(cookieString);
+    if (cookie[cookieName]) {
+      return cookie[cookieName];
+    }
   }
   return null;
 }
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const formData = await request.formData();
-  console.log(Object.fromEntries(formData));
 
   let session = await getSession(request.headers.get("cookie"));
 
   try {
-    const csrf = await fetch("https://staging-studio-api.jogg.co/csrf-cookie", {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json", // Correct Content-Type header
-      },
+    // Fetch CSRF cookie from Laravel backend
+    const csrfResponse = await fetch(
+      "https://staging-studio-api.jogg.co/csrf-cookie",
+      {
+        method: "GET",
+      }
+    );
+
+    // Collect all 'Set-Cookie' headers
+    const setCookieHeaders = [];
+    csrfResponse.headers.forEach((value, key) => {
+      if (key.toLowerCase() === "set-cookie") {
+        setCookieHeaders.push(value);
+      }
     });
 
-    console.log(csrf, "csrf object");
-
-    const setCookieHeader = csrf.headers.get("Set-Cookie");
-
-    if (!setCookieHeader) {
-      throw new Error("Set-Cookie header not found in CSRF response");
+    if (setCookieHeaders.length === 0) {
+      throw new Error("Set-Cookie headers not found in CSRF response");
     }
 
-    const csrfToken = await getCookieValue(setCookieHeader, "XSRF-TOKEN");
-    console.log(csrfToken, "csrfToken@@@@@@@@@@@@");
-    // const sessionToken = getCookieValue(setCookieHeader, "studio_session");
-    // console.log(sessionToken, "sessionToken ((((99999");
-    // const result = `XSRF-TOKEN=${csrfToken}, studio_session=${csrfToken}`;
+    // Combine cookies into a single string for the 'Cookie' header
+    const cookies = setCookieHeaders
+      .map((cookie) => cookie.split(";")[0])
+      .join("; ");
+
+    // Parse the cookies to extract the CSRF token
+    const csrfToken = getCookieValue(setCookieHeaders, "XSRF-TOKEN");
 
     if (!csrfToken) {
-      throw new Error("CSRF token not found");
+      throw new Error("CSRF token not found in cookies");
     }
 
     // Prepare headers for login request
-    const myHeaders = await new Headers();
-    await myHeaders.append("X-XSRF-TOKEN", csrfToken);
-    // myHeaders.append("Cookie", setCookieHeader);
-    await myHeaders.append("Content-Type", "application/json");
-    await myHeaders.append("Origin", "https://local.jogg.co");
-
-    console.log(myHeaders, "myHeaders");
+    const myHeaders = new Headers();
+    myHeaders.append("X-XSRF-TOKEN", csrfToken);
+    myHeaders.append("Content-Type", "application/json");
+    // Include the cookies from the CSRF response
+    myHeaders.append("Cookie", cookies);
 
     const response = await fetch("https://staging-studio-api.jogg.co/login", {
       method: "POST",
       headers: myHeaders,
       body: JSON.stringify(Object.fromEntries(formData)),
-      credentials: "include",
     });
 
-    console.log(response, "log in response");
+    if (!response.ok) {
+      throw new Error(`Login failed: ${response.statusText}`);
+    }
 
-    // if (!response.ok) {
-    //   throw new Error(`Login failed: ${response.statusText}`);
-    // }
+    console.log(response, "$$%%%%%%%$$$$$$$");
 
-    const token = getCookieValue(
-      response.headers.get("Set-Cookie"),
-      "studio_session"
-    );
-    console.log(token, "token");
+    // Collect 'Set-Cookie' headers from the login response
+    const loginSetCookieHeaders = [];
+    response.headers.forEach((value, key) => {
+      if (key.toLowerCase() === "set-cookie") {
+        loginSetCookieHeaders.push(value);
+      }
+    });
 
+    if (loginSetCookieHeaders.length === 0) {
+      throw new Error("Set-Cookie headers not found in login response");
+    }
+
+    // Get the session token from the login cookies
+    const token = getCookieValue(loginSetCookieHeaders, "studio_session"); // Replace with your actual session cookie name
+
+    if (!token) {
+      throw new Error("Session token not found in login cookies");
+    }
+
+    // Store the session token and CSRF token in the Remix session
     session.set("token", token);
     session.set("csrf", csrfToken);
 
@@ -88,6 +103,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return json({ error: "Login failed" }, { status: 500 });
   }
 };
+
 export default function LoginForm() {
   return (
     <div>
